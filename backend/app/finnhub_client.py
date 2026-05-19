@@ -71,3 +71,22 @@ async def fetch_quote_full(symbol: str) -> tuple[int | None, int | None]:
 async def fetch_quote_cents(symbol: str) -> int | None:
     current, _ = await fetch_quote_full(symbol)
     return current
+
+
+async def fetch_market_status() -> dict | None:
+    """Query Finnhub's /stock/market-status for US exchanges.
+
+    Returns the raw dict (`{isOpen, session, holiday, timezone, t}`) or None
+    when no API key is configured. The endpoint is on Finnhub's free tier and
+    correctly accounts for weekends, NYSE/NASDAQ holidays, and half-days.
+    """
+    if not FINNHUB_API_KEY:
+        return None
+    params = {"exchange": "US", "token": FINNHUB_API_KEY}
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        resp = await client.get(f"{FINNHUB_REST_URL}/stock/market-status", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+    if not isinstance(data, dict):
+        return None
+    return data

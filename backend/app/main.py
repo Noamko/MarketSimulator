@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .db import bootstrap
 from .finnhub_client import FinnhubError
-from .market_hours import is_market_open
+from .market_hours import is_market_open, market_state, market_status_poller
 from .price_hub import hub
 from .routes import history as history_routes
 from .routes import portfolio as portfolio_routes
@@ -24,9 +25,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(app: FastAPI):
     bootstrap()
     await hub.start()
+    poll_task = asyncio.create_task(market_status_poller(), name="market-status-poll")
     try:
         yield
     finally:
+        poll_task.cancel()
+        try:
+            await poll_task
+        except (asyncio.CancelledError, Exception):
+            pass
         await hub.stop()
 
 
@@ -56,4 +63,4 @@ app.include_router(ws_routes.router)
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "market_open": is_market_open()}
+    return {"ok": True, "market_open": is_market_open(), "market": market_state()}
