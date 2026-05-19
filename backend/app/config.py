@@ -9,7 +9,6 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
-STARTING_CASH_CENTS = int(os.getenv("STARTING_CASH_CENTS", "10000000"))
 
 _db_path = os.getenv("DB_PATH", "./data/market_sim.db")
 DB_PATH = (BACKEND_DIR / _db_path).resolve() if not os.path.isabs(_db_path) else Path(_db_path)

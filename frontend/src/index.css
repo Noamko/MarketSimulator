@@ -60,8 +60,86 @@ input, select {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 18px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .header h1 { margin: 0; font-size: 22px; }
+.header-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.user-chip {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 0 0 0 6px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-btn:hover { color: var(--text); background: none; }
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px;
+}
+.login-card h1 { margin: 0 0 6px 0; font-size: 22px; }
+.login-card h2 { margin: 20px 0 10px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.login-card p { margin: 0 0 6px 0; font-size: 13px; }
+.user-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  text-align: left;
+  background: var(--panel-2);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.user-row:hover { background: #242c3e; }
+.user-row .user-name { font-weight: 600; }
+.create-form { display: flex; flex-direction: column; gap: 12px; }
+.create-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.create-form input { width: 100%; }
+.login-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.login-error {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--red);
+}
 
 .market-status {
   font-size: 13px;
@@ -101,17 +179,74 @@ input, select {
   padding: 8px 6px;
   border-radius: 5px;
   cursor: pointer;
+  gap: 8px;
 }
 .watchlist .row:hover { background: var(--panel-2); }
 .watchlist .row.active { background: var(--panel-2); border-left: 3px solid var(--accent); padding-left: 3px; }
-.watchlist .sym { font-weight: 600; }
+.watchlist .row-left, .watchlist .row-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.watchlist .row-right {
+  align-items: flex-end;
+  flex-direction: row;
+  gap: 4px;
+}
+.watchlist .row-right .price { display: block; }
+.watchlist .sym { font-weight: 600; font-size: 14px; }
+.watchlist .row-change {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+.watchlist .row-change.positive { color: var(--green); }
+.watchlist .row-change.negative { color: var(--red); }
 .watchlist .price { font-variant-numeric: tabular-nums; }
-.watchlist .add { display: flex; gap: 6px; margin-top: 10px; }
+.watchlist .add-wrap { position: relative; margin-top: 10px; }
+.watchlist .add { display: flex; gap: 6px; }
 .watchlist .add input { flex: 1; }
 .watchlist .remove {
   background: none; border: none; color: var(--muted); padding: 0 4px; font-size: 16px;
 }
 .watchlist .remove:hover { color: var(--red); background: none; }
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 10;
+}
+.dropdown-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.dropdown-row:last-child { border-bottom: none; }
+.dropdown-row.highlight { background: var(--panel-2); }
+.dropdown-row.muted { cursor: default; color: var(--muted); }
+.dropdown-row .ds-sym { font-weight: 600; min-width: 56px; }
+.dropdown-row .ds-desc {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .chart-wrap { height: 380px; position: relative; }
 .chart-wrap .empty {
@@ -123,6 +258,20 @@ input, select {
 .chart-header .current-price.up { color: var(--green); }
 .chart-header .current-price.down { color: var(--red); }
 .chart-status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+.position-banner {
+  margin: 10px 0 6px 0;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  border-left-width: 3px;
+}
+.position-banner.positive { border-left-color: var(--green); }
+.position-banner.negative { border-left-color: var(--red); }
+.position-banner.muted    { border-left-color: var(--muted); }
 
 .timeframe-bar {
   display: flex;

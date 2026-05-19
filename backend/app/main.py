@@ -12,7 +12,9 @@ from .price_hub import hub
 from .routes import history as history_routes
 from .routes import portfolio as portfolio_routes
 from .routes import quotes as quotes_routes
+from .routes import search as search_routes
 from .routes import trades as trades_routes
+from .routes import users as users_routes
 from .routes import ws as ws_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -47,6 +49,8 @@ app.include_router(portfolio_routes.router, prefix="/api")
 app.include_router(trades_routes.router, prefix="/api")
 app.include_router(quotes_routes.router, prefix="/api")
 app.include_router(history_routes.router, prefix="/api")
+app.include_router(search_routes.router, prefix="/api")
+app.include_router(users_routes.router, prefix="/api")
 app.include_router(ws_routes.router)
 
 

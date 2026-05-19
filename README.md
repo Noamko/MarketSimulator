@@ -77,15 +77,16 @@ Open http://localhost:5173.
 - US stocks only (NASDAQ/NYSE). Bare tickers like `AAPL`, `MSFT`, `SPY`.
 - ~50 symbols can be watched concurrently on the free plan; the backend ref-counts subscriptions so unwatched symbols are automatically unsubscribed upstream.
 
-## Reset your account
+## Users
 
-Stop the backend, delete the SQLite file, and start again:
+There is no password / login. On first launch you'll see a screen with two options:
 
-```bash
-rm backend/data/market_sim.db
-```
+- **Pick an existing user** — clicking signs you in as that user. Their portfolio, trades, watchlist, etc. are scoped to them.
+- **Create a new user** — enter a unique name and a starting cash amount (in dollars). The new user is created on the backend and you're signed in immediately.
 
-The starting cash balance can be changed in `.env` (`STARTING_CASH_CENTS`, in cents).
+The signed-in user's name appears in the header with a **switch** link that takes you back to the login screen. Each user has their own cash balance, positions, trade history, and watchlist (the watchlist is stored locally per user in your browser).
+
+Users live in the `users` table in SQLite. To reset everything, stop the backend and delete `backend/data/market_sim.db` — the next start will boot with no users and the login screen will go straight to "create user".
 
 ## Running tests
 
@@ -96,6 +97,46 @@ pytest -v
 ```
 
 Covers buy, partial sell, FIFO across multiple lots, full liquidation, insufficient funds, and insufficient shares.
+
+## Backend API
+
+All routes are served by the FastAPI app on `:8000`. The frontend dev server proxies `/api/*` and `/ws` so you can also hit them at `:5173`. Interactive Swagger docs: http://localhost:8000/docs.
+
+User-scoped endpoints (marked **U** below) require an `X-User-Id: <id>` request header — the frontend reads the signed-in user from localStorage and sends this on every fetch.
+
+| Method | Path | U | Purpose |
+|--------|------|---|---------|
+| `GET`  | `/api/health` |   | Liveness + market-open flag. |
+| `GET`  | `/api/users`  |   | List all users (`[{id, name, cash_cents, created_at}]`). |
+| `POST` | `/api/users`  |   | Create a new user. Body: `{ "name": "noam", "starting_cash_cents": 10000000 }`. 400 if the name is already taken. |
+| `GET`  | `/api/portfolio` | ✓ | Current account snapshot for the signed-in user: cash, per-symbol positions with avg cost / market value / unrealized P&L, realized P&L, total equity, and `market_open`. |
+| `POST` | `/api/trades` | ✓ | Execute a paper buy or sell at the latest known price. Body: `{ "symbol": "AAPL", "side": "BUY" \| "SELL", "quantity": 10 }`. Returns `{trade_id, price_cents, realized_pnl_cents}` (the last is non-null only for SELLs). 400 on insufficient cash / shares. |
+| `GET`  | `/api/trades?limit=N` | ✓ | Trade history for the signed-in user (newest first), capped at `limit` (default 100, max 1000). |
+| `GET`  | `/api/quote/{symbol}` |   | Latest price + previous close for a single symbol. Reads the in-memory cache first, falls back to Finnhub REST. |
+| `GET`  | `/api/history/{symbol}?range=<label>` |   | Historical bars for the chart. `range` is one of: `Sec`, `Min`, `Hour`, `Day`, `Week`, `Month`, `Year`, `2Y`, `5Y`, `10Y`. `Sec` reads the in-memory tick buffer; everything else hits yfinance with a per-range TTL cache. |
+| `GET`  | `/api/search?q=<text>` |   | Symbol search (ticker prefix or company name) via Finnhub's `/search`, filtered to plain US-style tickers. Returns up to 12 `{symbol, description, type}`. |
+| `WS`   | `/ws` |   | Bidirectional stream. Client sends `{"type":"watch","symbols":["AAPL","MSFT"]}` to register interest (the backend ref-counts upstream Finnhub subscriptions). Server pushes `{"type":"tick","symbol","price_cents","prev_close_cents","timestamp_ms","source":"stream"\|"rest"}` on every trade. |
+
+Quick example (substitute the actual user id from `GET /api/users`):
+
+```bash
+# Create a user (no header needed)
+curl -s -X POST http://localhost:8000/api/users \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"noam","starting_cash_cents":10000000}'
+
+# Buy 5 shares of AAPL as user 1
+curl -s -X POST http://localhost:8000/api/trades \
+  -H 'Content-Type: application/json' \
+  -H 'X-User-Id: 1' \
+  -d '{"symbol":"AAPL","side":"BUY","quantity":5}'
+
+# Snapshot for user 1
+curl -s -H 'X-User-Id: 1' http://localhost:8000/api/portfolio | jq
+
+# Public — no header needed
+curl -s 'http://localhost:8000/api/history/NVDA?range=Year' | jq '.points | length'
+```
 
 ## Project layout
 

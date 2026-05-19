@@ -48,12 +48,18 @@ export function useMarketSocket(symbols: string[]): UseMarketSocket {
               price_cents: msg.price_cents,
               timestamp_ms: msg.timestamp_ms,
               source: msg.source,
+              prev_close_cents: msg.prev_close_cents ?? null,
             };
             setPrices((prev) => {
               const existing = prev[tick.symbol];
               // Don't overwrite a stream tick with a (stale) rest seed.
               if (existing && existing.source === "stream" && tick.source === "rest") return prev;
-              return { ...prev, [tick.symbol]: tick };
+              // Preserve prev_close if the new tick lacks it (stream ticks don't carry it from Finnhub).
+              const merged: Tick = {
+                ...tick,
+                prev_close_cents: tick.prev_close_cents ?? existing?.prev_close_cents ?? null,
+              };
+              return { ...prev, [tick.symbol]: merged };
             });
             tickListeners.current.forEach((cb) => cb(tick));
           }

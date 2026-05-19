@@ -3,10 +3,21 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..price_hub import hub
+from ..price_hub import Tick, hub
 
 log = logging.getLogger("ws")
 router = APIRouter()
+
+
+def _tick_payload(tick: Tick) -> dict:
+    return {
+        "type": "tick",
+        "symbol": tick.symbol,
+        "price_cents": tick.price_cents,
+        "timestamp_ms": tick.timestamp_ms,
+        "source": tick.source,
+        "prev_close_cents": hub.prev_closes.get(tick.symbol),
+    }
 
 
 @router.websocket("/ws")
@@ -19,13 +30,7 @@ async def stream(ws: WebSocket) -> None:
         try:
             while True:
                 tick = await queue.get()
-                await ws.send_json({
-                    "type": "tick",
-                    "symbol": tick.symbol,
-                    "price_cents": tick.price_cents,
-                    "timestamp_ms": tick.timestamp_ms,
-                    "source": tick.source,
-                })
+                await ws.send_json(_tick_payload(tick))
         except (WebSocketDisconnect, RuntimeError):
             return
 
@@ -48,13 +53,7 @@ async def stream(ws: WebSocket) -> None:
                     for s in new_set:
                         tick = hub.latest_prices.get(s)
                         if tick is not None:
-                            await ws.send_json({
-                                "type": "tick",
-                                "symbol": tick.symbol,
-                                "price_cents": tick.price_cents,
-                                "timestamp_ms": tick.timestamp_ms,
-                                "source": tick.source,
-                            })
+                            await ws.send_json(_tick_payload(tick))
         except (WebSocketDisconnect, RuntimeError):
             return
 

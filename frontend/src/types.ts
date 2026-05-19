@@ -30,6 +30,7 @@ export interface Tick {
   price_cents: number;
   timestamp_ms: number;
   source: "stream" | "rest";
+  prev_close_cents: number | null;
 }
 
 export interface Quote {
@@ -56,4 +57,22 @@ export interface HistoryResponse {
   symbol: string;
   range: RangeLabel;
   points: HistoryPoint[];
+}
+
+export interface SearchResult {
+  symbol: string;
+  description: string;
+  type: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+}
+
+export interface User {
+  id: number;
+  name: string;
+  cash_cents: number;
+  created_at: string;
 }

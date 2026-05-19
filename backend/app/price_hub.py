@@ -9,7 +9,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from .config import FINNHUB_API_KEY, FINNHUB_WS_URL
-from .finnhub_client import fetch_quote_cents
+from .finnhub_client import fetch_quote_full
 
 log = logging.getLogger("pricehub")
 
@@ -38,6 +38,7 @@ class PriceHub:
     def __init__(self) -> None:
         self.latest_prices: dict[str, Tick] = {}
         self.tick_history: dict[str, Deque[Tick]] = {}
+        self.prev_closes: dict[str, int] = {}
         self._listeners: set[asyncio.Queue[Tick]] = set()
         self._ref_counts: Counter[str] = Counter()
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
@@ -108,10 +109,12 @@ class PriceHub:
 
     async def _seed_price(self, symbol: str) -> None:
         try:
-            price = await fetch_quote_cents(symbol)
+            price, prev_close = await fetch_quote_full(symbol)
         except Exception as e:
             log.warning("REST seed failed for %s: %s", symbol, e)
             return
+        if prev_close is not None:
+            self.prev_closes[symbol] = prev_close
         if price is None:
             return
         tick = Tick(symbol=symbol, price_cents=price, timestamp_ms=0, source="rest")

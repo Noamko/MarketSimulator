@@ -6,15 +6,18 @@ from .market_hours import is_market_open
 from .price_hub import PriceHub
 
 
-def snapshot(conn: sqlite3.Connection, hub: PriceHub) -> Portfolio:
-    cash_row = conn.execute("SELECT cash_cents FROM account WHERE id = 1").fetchone()
+def snapshot(conn: sqlite3.Connection, hub: PriceHub, user_id: int) -> Portfolio:
+    cash_row = conn.execute(
+        "SELECT cash_cents FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
     cash = int(cash_row["cash_cents"]) if cash_row else 0
 
     holdings = conn.execute(
         "SELECT symbol, "
         "       SUM(quantity_remaining)                          AS qty, "
         "       SUM(quantity_remaining * cost_basis_cents)       AS cost "
-        "FROM lots GROUP BY symbol HAVING qty > 0 ORDER BY symbol"
+        "FROM lots WHERE user_id = ? GROUP BY symbol HAVING qty > 0 ORDER BY symbol",
+        (user_id,),
     ).fetchall()
 
     positions: list[Position] = []
@@ -40,7 +43,8 @@ def snapshot(conn: sqlite3.Connection, hub: PriceHub) -> Portfolio:
 
     realized_row = conn.execute(
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) AS pnl "
-        "FROM trades WHERE side = 'SELL'"
+        "FROM trades WHERE user_id = ? AND side = 'SELL'",
+        (user_id,),
     ).fetchone()
     realized = int(realized_row["pnl"]) if realized_row else 0
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { LoginScreen } from "./components/LoginScreen";
 import { MarketStatus } from "./components/MarketStatus";
 import { Watchlist } from "./components/Watchlist";
 import { PriceChart } from "./components/PriceChart";
@@ -7,15 +8,26 @@ import { TradeForm } from "./components/TradeForm";
 import { Portfolio } from "./components/Portfolio";
 import { TradeHistory } from "./components/TradeHistory";
 import { useMarketSocket } from "./hooks/useMarketSocket";
-import { getPortfolio, getTrades } from "./api";
-import type { Portfolio as PortfolioT, RangeLabel, TradeRow } from "./types";
+import { getPortfolio, getTrades, setCurrentUserId } from "./api";
+import type { Portfolio as PortfolioT, RangeLabel, TradeRow, User } from "./types";
 
 const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "TSLA", "NVDA", "SPY"];
-const WATCHLIST_KEY = "marketsim.watchlist";
+const USER_KEY = "marketsim.user";
+const watchlistKey = (userId: number) => `marketsim.watchlist.${userId}`;
 
-function loadWatchlist(): string[] {
+function loadUser(): User | null {
   try {
-    const raw = localStorage.getItem(WATCHLIST_KEY);
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    if (u && typeof u.id === "number" && typeof u.name === "string") return u as User;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function loadWatchlist(userId: number): string[] {
+  try {
+    const raw = localStorage.getItem(watchlistKey(userId));
     if (raw) {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr) && arr.every((x) => typeof x === "string")) return arr;
@@ -25,8 +37,31 @@ function loadWatchlist(): string[] {
 }
 
 export default function App() {
-  const [watchlist, setWatchlist] = useState<string[]>(loadWatchlist);
-  const [selected, setSelected] = useState<string | null>(() => loadWatchlist()[0] ?? null);
+  const [user, setUser] = useState<User | null>(() => {
+    const u = loadUser();
+    if (u) setCurrentUserId(u.id);
+    return u;
+  });
+
+  if (!user) {
+    return (
+      <LoginScreen onPick={(u) => {
+        localStorage.setItem(USER_KEY, JSON.stringify(u));
+        setCurrentUserId(u.id);
+        setUser(u);
+      }} />
+    );
+  }
+  return <SignedInApp user={user} onSignOut={() => {
+    localStorage.removeItem(USER_KEY);
+    setCurrentUserId(null);
+    setUser(null);
+  }} />;
+}
+
+function SignedInApp({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+  const [watchlist, setWatchlist] = useState<string[]>(() => loadWatchlist(user.id));
+  const [selected, setSelected] = useState<string | null>(() => loadWatchlist(user.id)[0] ?? null);
   const [portfolio, setPortfolio] = useState<PortfolioT | null>(null);
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [range, setRange] = useState<RangeLabel>("Sec");
@@ -35,8 +70,8 @@ export default function App() {
   const { prices, connected, onTick } = useMarketSocket(symbols);
 
   useEffect(() => {
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist));
-  }, [watchlist]);
+    localStorage.setItem(watchlistKey(user.id), JSON.stringify(watchlist));
+  }, [watchlist, user.id]);
 
   const refresh = useCallback(async () => {
     const [p, t] = await Promise.all([getPortfolio(), getTrades(100)]);
@@ -46,7 +81,6 @@ export default function App() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Refresh portfolio every 2s so unrealized P&L tracks the live ticks.
   useEffect(() => {
     const id = setInterval(() => { void getPortfolio().then(setPortfolio).catch(() => {}); }, 2000);
     return () => clearInterval(id);
@@ -59,12 +93,22 @@ export default function App() {
   };
 
   const selectedTick = selected ? prices[selected] : undefined;
+  const selectedPosition = selected
+    ? portfolio?.positions.find((p) => p.symbol === selected) ?? null
+    : null;
 
   return (
     <div className="app">
       <div className="header">
         <h1>MarketSimulator</h1>
-        <MarketStatus open={portfolio?.market_open ?? false} connected={connected} />
+        <div className="header-right">
+          <MarketStatus open={portfolio?.market_open ?? false} connected={connected} />
+          <span className="user-chip">
+            <span className="muted">user</span>{" "}
+            <strong>{user.name}</strong>
+            <button type="button" className="link-btn" onClick={onSignOut}>switch</button>
+          </span>
+        </div>
       </div>
       <div className="grid">
         <Watchlist
@@ -78,7 +122,13 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <TimeframeBar value={range} onChange={setRange} />
-            <PriceChart symbol={selected} prices={prices} onTick={onTick} range={range} />
+            <PriceChart
+              symbol={selected}
+              prices={prices}
+              onTick={onTick}
+              range={range}
+              position={selectedPosition}
+            />
           </div>
           <Portfolio data={portfolio} onPick={(s) => { addSymbol(s); setSelected(s); }} />
           <TradeHistory trades={trades} />

@@ -2,12 +2,14 @@ import { useEffect, useRef } from "react";
 import {
   createChart,
   ColorType,
+  LineStyle,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { RangeLabel, Tick } from "../types";
-import { fmtMoney } from "../format";
+import type { Position, RangeLabel, Tick } from "../types";
+import { fmtMoney, fmtSignedMoney, fmtPct } from "../format";
 import { getHistory } from "../api";
 
 interface Props {
@@ -15,12 +17,14 @@ interface Props {
   prices: Record<string, Tick>;
   onTick: (cb: (t: Tick) => void) => () => void;
   range: RangeLabel;
+  position: Position | null;
 }
 
-export function PriceChart({ symbol, prices, onTick, range }: Props) {
+export function PriceChart({ symbol, prices, onTick, range, position }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const costLineRef = useRef<IPriceLine | null>(null);
   const lastTsRef = useRef<number>(0);
   const loadIdRef = useRef<number>(0);
   const statusRef = useRef<HTMLDivElement | null>(null);
@@ -114,6 +118,26 @@ export function PriceChart({ symbol, prices, onTick, range }: Props) {
       });
   }, [symbol, range]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cost-basis price line: drawn whenever we own this symbol.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    if (costLineRef.current) {
+      try { series.removePriceLine(costLineRef.current); } catch { /* ignore */ }
+      costLineRef.current = null;
+    }
+    if (position && position.quantity > 0) {
+      costLineRef.current = series.createPriceLine({
+        price: position.avg_cost_cents / 100,
+        color: "#d29922",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `cost ${fmtMoney(position.avg_cost_cents)}`,
+      });
+    }
+  }, [position?.symbol, position?.avg_cost_cents, position?.quantity, symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Live ticks only in Sec mode.
   useEffect(() => {
     if (!symbol || range !== "Sec") return;
@@ -128,6 +152,12 @@ export function PriceChart({ symbol, prices, onTick, range }: Props) {
   }, [symbol, range, onTick]);
 
   const current = symbol ? prices[symbol] : undefined;
+  const showPosition = position && position.symbol === symbol && position.quantity > 0;
+  const pnl = showPosition ? position!.unrealized_pnl_cents : null;
+  const pnlCls = pnl == null ? "muted" : pnl > 0 ? "positive" : pnl < 0 ? "negative" : "";
+  const pct = showPosition && position!.last_price_cents != null
+    ? fmtPct(position!.last_price_cents - position!.avg_cost_cents, position!.avg_cost_cents)
+    : "—";
 
   return (
     <div className="panel">
@@ -135,6 +165,20 @@ export function PriceChart({ symbol, prices, onTick, range }: Props) {
         <h2 style={{ margin: 0 }}>{symbol ?? "Pick a symbol"}</h2>
         <div className="current-price">{current ? fmtMoney(current.price_cents) : "—"}</div>
       </div>
+      {showPosition && (
+        <div className={`position-banner ${pnlCls}`}>
+          <span className="muted">You own</span>{" "}
+          <strong>{position!.quantity}</strong>{" "}
+          <span className="muted">@ avg</span>{" "}
+          <strong>{fmtMoney(position!.avg_cost_cents)}</strong>{" "}
+          <span className="muted">·</span>{" "}
+          <span className="muted">value</span>{" "}
+          {fmtMoney(position!.market_value_cents)}{" "}
+          <span className="muted">·</span>{" "}
+          <strong className={pnlCls}>{fmtSignedMoney(pnl)} ({pct})</strong>{" "}
+          <span className="muted">since you bought</span>
+        </div>
+      )}
       <div className="chart-wrap">
         <div ref={containerRef} style={{ height: 380 }} />
         {!symbol && <div className="empty">Select a symbol from the watchlist</div>}
