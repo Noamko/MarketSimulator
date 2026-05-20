@@ -1,0 +1,31 @@
+services:
+
+  marketsim-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      DB_PATH: /app/data/market_sim.db
+    volumes:
+      - marketsim-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  marketsim-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8081:80"
+    restart: unless-stopped
+    depends_on:
+      marketsim-backend:
+        condition: service_healthy
+
+volumes:
+  marketsim-data:
