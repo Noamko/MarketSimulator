@@ -6,6 +6,7 @@ from ..price_hub import hub
 from ..finnhub_client import fetch_quote_cents
 from ..trading import buy, sell, TradingError
 from ..users import get_current_user_id
+from .. import webhooks
 
 router = APIRouter()
 
@@ -27,12 +28,18 @@ async def post_trade(req: TradeRequest, user_id: int = Depends(get_current_user_
         with get_conn() as conn:
             if req.side == "BUY":
                 trade_id = buy(conn, user_id, req.symbol, req.quantity, price)
-                return {"trade_id": trade_id, "price_cents": price, "realized_pnl_cents": None}
+                pnl = None
             else:
                 trade_id, pnl = sell(conn, user_id, req.symbol, req.quantity, price)
-                return {"trade_id": trade_id, "price_cents": price, "realized_pnl_cents": pnl}
     except TradingError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Only fires after a committed trade (never on TradingError); schedules the
+    # POST so it doesn't delay this response.
+    webhooks.fire_trade_executed(
+        user_id, trade_id, req.symbol.upper(), req.side, req.quantity, price, pnl
+    )
+    return {"trade_id": trade_id, "price_cents": price, "realized_pnl_cents": pnl}
 
 
 @router.get("/trades", response_model=list[TradeRow])

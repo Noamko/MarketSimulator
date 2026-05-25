@@ -6,7 +6,7 @@ from typing import Iterator
 from .config import DB_PATH
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _connect(path: Path) -> sqlite3.Connection:
@@ -79,6 +79,14 @@ def _migrate_v0_to_v1(conn: sqlite3.Connection) -> None:
         conn.execute("DROP TABLE account")
 
 
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Add the `webhooks` table. It is brand-new, so the idempotent
+    `CREATE TABLE IF NOT EXISTS` in schema.sql (re-applied below) does the actual
+    work. This hook exists for symmetry with the v0→v1 migration and as a home
+    for any future ALTERs to the webhooks schema."""
+    pass
+
+
 def bootstrap(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = _connect(db_path)
@@ -89,6 +97,8 @@ def bootstrap(db_path: Path = DB_PATH) -> None:
             needs_migration = _table_exists(conn, "account") and not _table_exists(conn, "users")
             if needs_migration:
                 _migrate_v0_to_v1(conn)
+        if current_version < 2:
+            _migrate_v1_to_v2(conn)
         # Always re-apply schema (CREATE IF NOT EXISTS) for any missing pieces.
         conn.executescript(SCHEMA_PATH.read_text())
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

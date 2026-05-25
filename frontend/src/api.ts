@@ -1,6 +1,6 @@
 import type {
   HistoryResponse, Portfolio, Quote, RangeLabel,
-  SearchResponse, TradeRow, User,
+  SearchResponse, TradeRow, User, Webhook, WebhookCreate,
 } from "./types";
 
 let currentUserId: number | null = null;
@@ -24,6 +24,7 @@ async function jsonFetch<T>(url: string, init?: RequestInit, requireUser = false
     } catch { /* ignore */ }
     throw new Error(detail);
   }
+  if (resp.status === 204) return undefined as T;  // No Content (e.g. DELETE)
   return resp.json() as Promise<T>;
 }
 
@@ -74,4 +75,37 @@ export function createUser(name: string, startingCashCents: number): Promise<Use
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, starting_cash_cents: startingCashCents }),
   });
+}
+
+// Webhooks (user-scoped)
+export function listWebhooks(): Promise<Webhook[]> {
+  return jsonFetch<Webhook[]>("/api/webhooks", undefined, true);
+}
+
+export function createWebhook(body: WebhookCreate): Promise<Webhook> {
+  return jsonFetch<Webhook>(
+    "/api/webhooks",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
+export function updateWebhook(id: number, enabled: boolean): Promise<Webhook> {
+  return jsonFetch<Webhook>(
+    `/api/webhooks/${id}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    },
+    true,
+  );
+}
+
+export function deleteWebhook(id: number): Promise<void> {
+  return jsonFetch<void>(`/api/webhooks/${id}`, { method: "DELETE" }, true);
 }

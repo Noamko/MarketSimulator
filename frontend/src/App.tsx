@@ -7,6 +7,7 @@ import { TimeframeBar } from "./components/TimeframeBar";
 import { TradeForm } from "./components/TradeForm";
 import { Portfolio } from "./components/Portfolio";
 import { TradeHistory } from "./components/TradeHistory";
+import { Settings } from "./components/Settings";
 import { useMarketSocket } from "./hooks/useMarketSocket";
 import { getPortfolio, getTrades, setCurrentUserId } from "./api";
 import type { Portfolio as PortfolioT, RangeLabel, TradeRow, User } from "./types";
@@ -65,6 +66,7 @@ function SignedInApp({ user, onSignOut }: { user: User; onSignOut: () => void })
   const [portfolio, setPortfolio] = useState<PortfolioT | null>(null);
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [range, setRange] = useState<RangeLabel>("Sec");
+  const [view, setView] = useState<"dashboard" | "settings">("dashboard");
 
   const symbols = useMemo(() => watchlist, [watchlist]);
   const { prices, connected, onTick } = useMarketSocket(symbols);
@@ -103,6 +105,13 @@ function SignedInApp({ user, onSignOut }: { user: User; onSignOut: () => void })
         <h1>MarketSimulator</h1>
         <div className="header-right">
           <MarketStatus open={portfolio?.market_open ?? false} connected={connected} />
+          <button
+            type="button"
+            className={`nav-btn${view === "settings" ? " active" : ""}`}
+            onClick={() => setView((v) => (v === "settings" ? "dashboard" : "settings"))}
+          >
+            {view === "settings" ? "← Dashboard" : "⚙ Settings"}
+          </button>
           <span className="user-chip">
             <span className="muted">user</span>{" "}
             <strong>{user.name}</strong>
@@ -110,6 +119,7 @@ function SignedInApp({ user, onSignOut }: { user: User; onSignOut: () => void })
           </span>
         </div>
       </div>
+      {view === "settings" ? <Settings /> : (
       <div className="grid">
         <Watchlist
           symbols={watchlist}
@@ -140,6 +150,7 @@ function SignedInApp({ user, onSignOut }: { user: User; onSignOut: () => void })
           onTraded={refresh}
         />
       </div>
+      )}
     </div>
   );
 }

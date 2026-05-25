@@ -124,9 +124,24 @@ async def _poll_once() -> None:
 
 
 async def market_status_poller(interval: float = POLL_INTERVAL_S) -> None:
-    """Long-lived background task. Started by main.py's lifespan."""
+    """Long-lived background task. Started by main.py's lifespan.
+
+    Detects open<->close transitions and fires MARKET_STATUS webhooks. The first
+    successful poll only establishes the baseline (no fire), so a server that
+    starts up while the market is open doesn't emit a spurious "open" event.
+    """
+    # Deferred import: webhooks -> portfolio -> market_hours would be a cycle at
+    # module load, so we import lazily once the loop is running.
+    from . import webhooks
+
+    initialized = False
     while True:
+        prev_open = is_market_open()
         await _poll_once()
+        new_open = is_market_open()
+        if initialized and new_open != prev_open:
+            asyncio.create_task(webhooks.fire_market_transition(new_open, _state["source"]))
+        initialized = True
         try:
             await asyncio.sleep(interval)
         except asyncio.CancelledError:

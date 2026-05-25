@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import webhooks
 from .db import bootstrap
 from .finnhub_client import FinnhubError
 from .market_hours import is_market_open, market_state, market_status_poller
@@ -16,6 +17,7 @@ from .routes import quotes as quotes_routes
 from .routes import search as search_routes
 from .routes import trades as trades_routes
 from .routes import users as users_routes
+from .routes import webhooks as webhooks_routes
 from .routes import ws as ws_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -25,15 +27,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(app: FastAPI):
     bootstrap()
     await hub.start()
+    hub.add_tick_observer(webhooks.on_tick)
+    await webhooks.reconcile_subscriptions()  # subscribe symbols any rules need at boot
     poll_task = asyncio.create_task(market_status_poller(), name="market-status-poll")
+    sub_task = asyncio.create_task(webhooks.price_rule_watcher(), name="webhook-subs")
+    pf_task = asyncio.create_task(webhooks.portfolio_watcher(), name="webhook-portfolio")
     try:
         yield
     finally:
-        poll_task.cancel()
-        try:
-            await poll_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        for task in (poll_task, sub_task, pf_task):
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
         await hub.stop()
 
 
@@ -58,6 +65,7 @@ app.include_router(quotes_routes.router, prefix="/api")
 app.include_router(history_routes.router, prefix="/api")
 app.include_router(search_routes.router, prefix="/api")
 app.include_router(users_routes.router, prefix="/api")
+app.include_router(webhooks_routes.router, prefix="/api")
 app.include_router(ws_routes.router)
 
 

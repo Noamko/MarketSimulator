@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, deque
 from dataclasses import dataclass
-from typing import Deque, Optional
+from typing import Callable, Deque, Optional
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -40,6 +40,7 @@ class PriceHub:
         self.tick_history: dict[str, Deque[Tick]] = {}
         self.prev_closes: dict[str, int] = {}
         self._listeners: set[asyncio.Queue[Tick]] = set()
+        self._tick_observers: list[Callable[[Tick], None]] = []
         self._ref_counts: Counter[str] = Counter()
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._lock = asyncio.Lock()
@@ -84,6 +85,12 @@ class PriceHub:
 
     def unregister_listener(self, q: asyncio.Queue[Tick]) -> None:
         self._listeners.discard(q)
+
+    def add_tick_observer(self, cb: Callable[[Tick], None]) -> None:
+        """Register a sync callback invoked for every incoming Tick. Used by the
+        webhook layer to evaluate price rules. Observers must not block — they
+        should schedule their own work (e.g. asyncio.create_task)."""
+        self._tick_observers.append(cb)
 
     # ---------- subscriptions ----------
 
@@ -200,6 +207,12 @@ class PriceHub:
                 q.put_nowait(tick)
             except Exception:
                 pass
+        # Notify non-browser observers (e.g. webhook price-rule evaluation).
+        for cb in self._tick_observers:
+            try:
+                cb(tick)
+            except Exception as e:
+                log.warning("tick observer error: %s", e)
 
 
 # Module-level singleton, wired up in main.py lifespan.

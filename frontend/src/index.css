@@ -90,6 +90,20 @@ input, select {
 }
 .link-btn:hover { color: var(--text); background: none; }
 
+.nav-btn {
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-btn:hover { background: #242c3e; border-color: var(--accent); }
+.nav-btn.active { color: var(--accent); border-color: var(--accent); }
+
 .login-screen {
   min-height: 100vh;
   display: flex;
@@ -212,6 +226,9 @@ input, select {
   background: none; border: none; color: var(--muted); padding: 0 4px; font-size: 16px;
 }
 .watchlist .remove:hover { color: var(--red); background: none; }
+
+.symbol-search { position: relative; flex: 1; }
+.symbol-search input { width: 100%; }
 
 .dropdown {
   position: absolute;

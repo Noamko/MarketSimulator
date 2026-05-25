@@ -76,3 +76,34 @@ export interface User {
   cash_cents: number;
   created_at: string;
 }
+
+export type WebhookEvent =
+  | "PRICE_TARGET" | "MARKET_STATUS" | "TRADE_EXECUTED" | "PORTFOLIO_THRESHOLD";
+
+export type WebhookDirection = "above" | "below";
+export type WebhookMetric = "equity" | "realized_pnl";
+
+export interface Webhook {
+  id: number;
+  user_id: number;
+  url: string;
+  event_type: WebhookEvent;
+  symbol: string | null;
+  target_cents: number | null;
+  direction: string | null;
+  metric: string | null;
+  enabled: boolean;
+  one_shot: boolean;
+  last_fired_at: string | null;
+  created_at: string;
+}
+
+export interface WebhookCreate {
+  url: string;
+  event_type: WebhookEvent;
+  symbol?: string | null;
+  target_cents?: number | null;
+  direction?: WebhookDirection | null;
+  metric?: WebhookMetric | null;
+  one_shot?: boolean;
+}

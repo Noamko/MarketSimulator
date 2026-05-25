@@ -28,3 +28,22 @@ CREATE TABLE IF NOT EXISTS lots (
     trade_id            INTEGER NOT NULL REFERENCES trades(id)
 );
 CREATE INDEX IF NOT EXISTS idx_lots_user_symbol ON lots(user_id, symbol, opened_at);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL REFERENCES users(id),
+    url              TEXT    NOT NULL,
+    event_type       TEXT    NOT NULL CHECK (event_type IN
+                         ('PRICE_TARGET','MARKET_STATUS','TRADE_EXECUTED','PORTFOLIO_THRESHOLD')),
+    symbol           TEXT,                                              -- PRICE_TARGET only
+    target_cents     INTEGER,                                           -- price / equity / pnl threshold
+    direction        TEXT CHECK (direction IN ('above','below')),       -- PRICE_TARGET & PORTFOLIO_THRESHOLD
+    metric           TEXT CHECK (metric IN ('equity','realized_pnl')),  -- PORTFOLIO_THRESHOLD only
+    enabled          INTEGER NOT NULL DEFAULT 1,
+    one_shot         INTEGER NOT NULL DEFAULT 1,
+    last_value_cents INTEGER,                                           -- crossing-detection baseline
+    last_fired_at    TEXT,
+    created_at       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_webhooks_user   ON webhooks(user_id);
+CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(enabled, event_type, symbol);
